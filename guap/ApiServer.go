@@ -1,7 +1,9 @@
 package guap
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"reflect"
@@ -43,7 +45,7 @@ func (s *APIServer) routeHandler(w http.ResponseWriter, r *http.Request) {
 
 			params := extractParameters(route.pattern, r.URL.Path)
 
-			invokeHandler(route.handler, params, w)
+			invokeHandler(route, params, w, r)
 			return
 		} else if r.Method != route.methodType.String() && route.pattern.MatchString(r.URL.Path) {
 			methodAllowed = false
@@ -73,11 +75,11 @@ func extractParameters(pattern *regexp.Regexp, path string) map[string]string {
 	return params
 }
 
-func invokeHandler(handler reflect.Value, params map[string]string, w http.ResponseWriter) {
+func getParams(handler reflect.Value, params map[string]string, r *http.Request) []reflect.Value {
 	handlerType := handler.Type()
 	var args []reflect.Value
-
 	i := 0
+	paramCount := handlerType.NumIn()
 	for _, value := range params {
 		argType := handlerType.In(i)
 
@@ -90,9 +92,48 @@ func invokeHandler(handler reflect.Value, params map[string]string, w http.Respo
 			log.Fatalf("Invalid argument type: %s", argType.String())
 		}
 		i++
+
 	}
 
-	results := handler.Call(args)
+	if i == paramCount-1 {
+		argType := handlerType.In(i)
+		val, err := getBody(r, argType)
+		if err != nil {
+			log.Fatalf("Invalid argument type: %s", argType.String())
+		}
+		if val.IsValid() {
+			args = append(args, val)
+		}
+	}
+
+	return args
+}
+
+func getBody(r *http.Request, argType reflect.Type) (reflect.Value, error) {
+
+	if r.Body == nil {
+		return reflect.Value{}, nil
+	}
+
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+
+	argValue := reflect.New(argType).Interface()
+
+	if err := json.Unmarshal(body, argValue); err != nil {
+		return reflect.Value{}, err
+	}
+
+	return reflect.ValueOf(argValue).Elem(), nil
+}
+
+func invokeHandler(route Route, params map[string]string, w http.ResponseWriter, r *http.Request) {
+	args := getParams(route.handler, params, r)
+
+	results := route.handler.Call(args)
 	if len(results) > 0 {
 		_, err := fmt.Fprint(w, results[0].Interface())
 		if err != nil {

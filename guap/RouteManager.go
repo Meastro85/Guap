@@ -34,7 +34,7 @@ func (rm *RouteManager) RegisterRoute(method Method, path string, handler interf
 }
 
 func createRoutePattern(route string) *regexp.Regexp {
-	re := regexp.MustCompile(`\{(\w+)\}`)
+	re := regexp.MustCompile(`\{(\w+)}`)
 	regexPattern := "^" + re.ReplaceAllString(route, "(?P<$1>[^/]+)") + "$"
 	return regexp.MustCompile(regexPattern)
 }
