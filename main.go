@@ -15,6 +15,8 @@ func main() {
 
 	server.RouteManager.RegisterRoute(guap.Get, "/test/{id}", testCallWithId)
 
+	server.RouteManager.RegisterRoute(guap.Post, "/test/{id}", testPostCallWithId)
+
 	server.RouteManager.RegisterRoute(guap.Get, "/test/{id}/{text}", testCallWithIdAndText)
 
 	err := server.Start(nil)
@@ -42,4 +44,8 @@ type postTest struct {
 
 func testPostCall(body postTest) string {
 	return fmt.Sprintf("Test post call with text: %s, number: %d", body.Text, body.Number)
+}
+
+func testPostCallWithId(id int, body postTest) string {
+	return fmt.Sprintf("Test post call with text: %s, number: %d, id: %d", body.Text, body.Number, id)
 }

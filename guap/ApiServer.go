@@ -75,6 +75,19 @@ func extractParameters(pattern *regexp.Regexp, path string) map[string]string {
 	return params
 }
 
+func parseParam(argType reflect.Type, value string) reflect.Value {
+
+	if argType.Kind() == reflect.String {
+		return reflect.ValueOf(value)
+	} else if argType.Kind() == reflect.Int {
+		val, _ := strconv.Atoi(value)
+		return reflect.ValueOf(val)
+	} else {
+		log.Fatalf("Invalid argument type: %s", argType.String())
+		return reflect.Value{}
+	}
+}
+
 func getParams(handler reflect.Value, params map[string]string, r *http.Request) []reflect.Value {
 	handlerType := handler.Type()
 	var args []reflect.Value
@@ -83,13 +96,9 @@ func getParams(handler reflect.Value, params map[string]string, r *http.Request)
 	for _, value := range params {
 		argType := handlerType.In(i)
 
-		if argType.Kind() == reflect.String {
-			args = append(args, reflect.ValueOf(value))
-		} else if argType.Kind() == reflect.Int {
-			val, _ := strconv.Atoi(value)
-			args = append(args, reflect.ValueOf(val))
-		} else {
-			log.Fatalf("Invalid argument type: %s", argType.String())
+		param := parseParam(argType, value)
+		if param.IsValid() {
+			args = append(args, param)
 		}
 		i++
 
@@ -97,7 +106,8 @@ func getParams(handler reflect.Value, params map[string]string, r *http.Request)
 
 	if i == paramCount-1 {
 		argType := handlerType.In(i)
-		val, err := getBody(r, argType)
+		contentType := r.Header.Get("Content-Type")
+		val, err := getBody(r, argType, contentType)
 		if err != nil {
 			log.Fatalf("Invalid argument type: %s", argType.String())
 		}
@@ -109,7 +119,7 @@ func getParams(handler reflect.Value, params map[string]string, r *http.Request)
 	return args
 }
 
-func getBody(r *http.Request, argType reflect.Type) (reflect.Value, error) {
+func getBody(r *http.Request, argType reflect.Type, contentType string) (reflect.Value, error) {
 
 	if r.Body == nil {
 		return reflect.Value{}, nil
@@ -123,8 +133,10 @@ func getBody(r *http.Request, argType reflect.Type) (reflect.Value, error) {
 
 	argValue := reflect.New(argType).Interface()
 
-	if err := json.Unmarshal(body, argValue); err != nil {
-		return reflect.Value{}, err
+	if contentType == "application/json" {
+		if err := json.Unmarshal(body, argValue); err != nil {
+			return reflect.Value{}, err
+		}
 	}
 
 	return reflect.ValueOf(argValue).Elem(), nil
