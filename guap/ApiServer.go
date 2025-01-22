@@ -11,11 +11,12 @@ import (
 	"strconv"
 )
 
-type Middleware func(http.Handler) http.HandlerFunc
+type Middleware func(next http.Handler) http.HandlerFunc
 
 type APIServer struct {
 	Addr         string
 	RouteManager *RouteManager
+	middleware   Middleware
 }
 
 type APIOptions struct {
@@ -26,38 +27,34 @@ func NewAPIServer(addr string) *APIServer {
 	return &APIServer{
 		Addr:         addr,
 		RouteManager: NewRouteManager(),
+		middleware:   nil,
 	}
 }
 
 func (s *APIServer) Start(options *APIOptions) error {
 
-	http.HandleFunc("/", s.routeHandler)
+	if options != nil {
+		if options.Middleware != nil {
+			s.middleware = options.Middleware
+		}
+	}
+
+	for _, route := range s.RouteManager.Routes {
+		path := fmt.Sprintf("%s %s", route.methodType.String(), route.path)
+		http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			s.handleRoute(route, w, r)
+		})
+	}
 
 	log.Printf("Starting API server at %s", s.Addr)
 
 	return http.ListenAndServe(s.Addr, nil)
 }
 
-func (s *APIServer) routeHandler(w http.ResponseWriter, r *http.Request) {
-	methodAllowed := true
-	for _, route := range s.RouteManager.Routes {
-		if r.Method == route.methodType.String() && route.pattern.MatchString(r.URL.Path) {
+func (s *APIServer) handleRoute(route Route, w http.ResponseWriter, r *http.Request) {
+	params := extractParameters(route.pattern, r.URL.Path)
 
-			params := extractParameters(route.pattern, r.URL.Path)
-
-			invokeHandler(route, params, w, r)
-			return
-		} else if r.Method != route.methodType.String() && route.pattern.MatchString(r.URL.Path) {
-			methodAllowed = false
-		}
-	}
-
-	if !methodAllowed {
-		http.Error(w, "405 Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	http.NotFound(w, r)
+	invokeHandler(route, params, w, r)
 }
 
 func extractParameters(pattern *regexp.Regexp, path string) map[string]string {
