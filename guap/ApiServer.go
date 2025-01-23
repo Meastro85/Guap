@@ -41,9 +41,16 @@ func (s *APIServer) Start(options *APIOptions) error {
 
 	for _, route := range s.RouteManager.Routes {
 		path := fmt.Sprintf("%s %s", route.methodType.String(), route.path)
-		http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+
+		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 			s.handleRoute(route, w, r)
-		})
+		}
+
+		if s.middleware != nil {
+			handler = s.middleware(handler)
+		}
+
+		http.HandleFunc(path, handler)
 	}
 
 	log.Printf("Starting API server at %s", s.Addr)
@@ -122,7 +129,12 @@ func getBody(r *http.Request, argType reflect.Type, contentType string) (reflect
 		return reflect.Value{}, nil
 	}
 
-	defer r.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+		}
+	}(r.Body)
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return reflect.Value{}, err

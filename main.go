@@ -3,6 +3,8 @@ package main
 import (
 	"Guap/guap"
 	"fmt"
+	"log"
+	"net/http"
 )
 
 func main() {
@@ -19,7 +21,11 @@ func main() {
 
 	server.RouteManager.RegisterRoute(guap.Get, "/test/{id}/{text}", testCallWithIdAndText)
 
-	err := server.Start(nil)
+	options := guap.APIOptions{
+		Middleware: LoggingMiddleware,
+	}
+
+	err := server.Start(&options)
 	if err != nil {
 		panic(err)
 	}
@@ -48,4 +54,12 @@ func testPostCall(body postTest) string {
 
 func testPostCallWithId(id int, body postTest) string {
 	return fmt.Sprintf("Test post call with text: %s, number: %d, id: %d", body.Text, body.Number, id)
+}
+
+func LoggingMiddleware(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Request: %s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+		log.Printf("Response completed for %s %s", r.Method, r.URL.Path)
+	}
 }

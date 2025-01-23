@@ -16,6 +16,10 @@ func NewRouteManager() *RouteManager {
 }
 
 func (rm *RouteManager) RegisterRoute(method Method, path string, handler interface{}) {
+	firstChar := path[0]
+	if firstChar != '/' {
+		panic("First character must be /")
+	}
 
 	pattern := createRoutePattern(path)
 
@@ -31,6 +35,12 @@ func (rm *RouteManager) RegisterRoute(method Method, path string, handler interf
 		handler:    handlerValue,
 	})
 
+}
+
+func (rm *RouteManager) RegisterRoutes(routes []BasicRoute) {
+	for _, route := range routes {
+		rm.RegisterRoute(route.method, route.path, route.handler)
+	}
 }
 
 func createRoutePattern(route string) *regexp.Regexp {

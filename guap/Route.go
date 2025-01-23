@@ -18,6 +18,12 @@ func (m Method) String() string {
 	return string(m)
 }
 
+type BasicRoute struct {
+	method  Method
+	path    string
+	handler reflect.Value
+}
+
 type Route struct {
 	path       string
 	pattern    *regexp.Regexp
