@@ -13,14 +13,24 @@ import (
 
 type Middleware func(next http.Handler) http.HandlerFunc
 
+func MiddlewareChain(middlewares ...Middleware) Middleware {
+	return func(next http.Handler) http.HandlerFunc {
+		for i := len(middlewares) - 1; i >= 0; i-- {
+			next = middlewares[i](next)
+		}
+
+		return next.ServeHTTP
+	}
+}
+
 type APIServer struct {
 	Addr         string
 	RouteManager *RouteManager
-	middleware   Middleware
+	middleware   []Middleware
 }
 
 type APIOptions struct {
-	Middleware Middleware
+	Middleware []Middleware
 }
 
 func NewAPIServer(addr string) *APIServer {
@@ -47,7 +57,8 @@ func (s *APIServer) Start(options *APIOptions) error {
 		}
 
 		if s.middleware != nil {
-			handler = s.middleware(handler)
+			middlewareChain := MiddlewareChain(s.middleware...)
+			handler = middlewareChain(handler)
 		}
 
 		http.HandleFunc(path, handler)

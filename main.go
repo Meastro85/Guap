@@ -22,7 +22,7 @@ func main() {
 	server.RouteManager.RegisterRoute(guap.Get, "/test/{id}/{text}", testCallWithIdAndText)
 
 	options := guap.APIOptions{
-		Middleware: LoggingMiddleware,
+		Middleware: []guap.Middleware{LoggingMiddleware},
 	}
 
 	err := server.Start(&options)
