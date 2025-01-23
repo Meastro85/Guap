@@ -49,6 +49,8 @@ func (s *APIServer) Start(options *APIOptions) error {
 		}
 	}
 
+	router := http.NewServeMux()
+
 	for _, route := range s.RouteManager.Routes {
 		path := fmt.Sprintf("%s %s", route.methodType.String(), route.path)
 
@@ -56,17 +58,22 @@ func (s *APIServer) Start(options *APIOptions) error {
 			s.handleRoute(route, w, r)
 		}
 
-		if s.middleware != nil {
-			middlewareChain := MiddlewareChain(s.middleware...)
-			handler = middlewareChain(handler)
-		}
+		router.HandleFunc(path, handler)
+	}
 
-		http.HandleFunc(path, handler)
+	server := http.Server{
+		Addr:    s.Addr,
+		Handler: router,
+	}
+
+	if s.middleware != nil {
+		middlewareChain := MiddlewareChain(s.middleware...)
+		server.Handler = middlewareChain(router)
 	}
 
 	log.Printf("Starting API server at %s", s.Addr)
 
-	return http.ListenAndServe(s.Addr, nil)
+	return server.ListenAndServe()
 }
 
 func (s *APIServer) handleRoute(route Route, w http.ResponseWriter, r *http.Request) {
